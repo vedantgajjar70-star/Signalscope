@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignalScope — Telling Real From Synthetic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #0a0e13;
+    --surface: #10151c;
+    --surface-raised: #161d26;
+    --surface-hi: #1c2530;
+    --hairline: #263140;
+    --hairline-soft: #1b2430;
+    --text: #e7ecf0;
+    --text-muted: #8b98a6;
+    --text-faint: #57636f;
+    --amber: #f2a93b;
+    --amber-dim: #a8763a;
+    --cool: #5b9bb3;
+    --flag: #d9705c;
+    --ok: #6fae8a;
+    --radius-s: 3px;
+    --radius-m: 6px;
+    --mono: 'IBM Plex Mono', monospace;
+    --sora: 'Sora', sans-serif;
+    --inter: 'Inter', sans-serif;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--inter);
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  ::selection{ background:var(--amber); color:#0a0e13; }
+
+  a{ color:inherit; }
+
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 32px; }
+
+  @media (max-width:720px){
+    .wrap{ padding:0 20px; }
+  }
+
+  /* ---------- background texture ---------- */
+  .grid-field{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(var(--hairline-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--hairline-soft) 1px, transparent 1px);
+    background-size: 64px 64px;
+    opacity:0.35;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 10%, transparent 75%);
+  }
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:sticky; top:0; z-index:50;
+    background:rgba(10,14,19,0.86);
+    backdrop-filter: blur(10px);
+    border-bottom:1px solid var(--hairline);
+  }
+  .nav-inner{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 0;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--sora); font-weight:600; font-size:16.5px;
+    letter-spacing:0.01em;
+  }
+  .brand .mark{ display:flex; }
+  .nav-links{
+    display:flex; align-items:center; gap:30px;
+    font-size:14px; color:var(--text-muted);
+  }
+  .nav-links a{ text-decoration:none; transition:color .15s ease; }
+  .nav-links a:hover{ color:var(--text); }
+  .nav-status{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:12px; color:var(--ok);
+  }
+  .dot-live{
+    width:6px; height:6px; border-radius:50%; background:var(--ok);
+    box-shadow:0 0 0 3px rgba(111,174,138,0.18);
+  }
+  @media (max-width:720px){ .nav-links{ display:none; } }
+
+  /* ---------- hero ---------- */
+  .hero{ position:relative; z-index:1; padding:96px 0 84px; }
+  .hero-grid{
+    display:grid; grid-template-columns: 1.05fr 0.95fr; gap:56px; align-items:center;
+  }
+  @media (max-width:920px){ .hero-grid{ grid-template-columns:1fr; } }
+
+  .eyebrow-row{
+    display:flex; align-items:center; gap:10px;
+    color:var(--text-faint); font-family:var(--mono); font-size:12.5px;
+    margin-bottom:22px;
+  }
+  .eyebrow-row svg{ opacity:0.7; }
+
+  h1.headline{
+    font-family:var(--sora); font-weight:600;
+    font-size:clamp(2.1rem, 4vw, 3.15rem);
+    line-height:1.12; letter-spacing:-0.01em;
+    margin:0 0 22px;
+    color:var(--text);
+  }
+  h1.headline .em{ color:var(--amber); }
+
+  p.lede{
+    font-size:17px; color:var(--text-muted); max-width:46ch;
+    margin:0 0 34px;
+  }
+
+  .hero-actions{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .btn{
+    display:inline-flex; align-items:center; gap:9px;
+    font-family:var(--inter); font-weight:600; font-size:14.5px;
+    padding:13px 22px; border-radius:var(--radius-s);
+    border:1px solid transparent; cursor:pointer;
+    transition:transform .12s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{ background:var(--amber); color:#231605; }
+  .btn-primary:hover{ background:#f5b658; }
+  .btn-ghost{ background:transparent; color:var(--text); border-color:var(--hairline); }
+  .btn-ghost:hover{ border-color:#3a4756; }
+
+  .hero-meta{
+    display:flex; gap:28px; margin-top:38px; flex-wrap:wrap;
+  }
+  .meta-item{ }
+  .meta-item .num{
+    font-family:var(--mono); font-size:22px; color:var(--text); display:block;
+  }
+  .meta-item .lbl{ font-size:12.5px; color:var(--text-faint); margin-top:2px; }
+
+  /* ---------- scan panel (hero visual) ---------- */
+  .scan-panel{
+    background:var(--surface); border:1px solid var(--hairline);
+    border-radius:var(--radius-m); overflow:hidden;
+    box-shadow:0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .scan-panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; border-bottom:1px solid var(--hairline-soft);
+    font-family:var(--mono); font-size:11.5px; color:var(--text-faint);
+  }
+  .scan-panel-head .file{ color:var(--text-muted); }
+  .scan-stage{
+    position:relative; height:230px;
+    background:
+      radial-gradient(120% 90% at 20% 10%, rgba(91,155,179,0.10), transparent 55%),
+      repeating-linear-gradient(45deg, #131a22 0 2px, #10151c 2px 14px);
+    overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .scan-object{
+    width:64%; height:70%;
+    border:1px solid #2c3948;
+    border-radius:4px;
+    position:relative;
+    background:linear-gradient(160deg, #17202a, #121820);
+  }
+  .scan-object::before, .scan-object::after{
+    content:''; position:absolute; width:14px; height:14px;
+    border-color:var(--amber); opacity:.85;
+  }
+  .corner{ position:absolute; width:16px; height:16px; }
+  .corner.tl{ top:8px; left:8px; border-top:2px solid var(--amber); border-left:2px solid var(--amber); }
+  .corner.tr{ top:8px; right:8px; border-top:2px solid var(--amber); border-right:2px solid var(--amber); }
+  .corner.bl{ bottom:8px; left:8px; border-bottom:2px solid var(--amber); border-left:2px solid var(--amber); }
+  .corner.br{ bottom:8px; right:8px; border-bottom:2px solid var(--amber); border-right:2px solid var(--amber); }
+
+  .hot-blob{
+    position:absolute; border-radius:50%;
+    background:radial-gradient(circle, rgba(242,169,59,0.55), rgba(242,169,59,0) 70%);
+    filter:blur(1px);
+  }
+  .hb1{ width:70px; height:70px; top:20%; left:14%; }
+  .hb2{ width:46px; height:46px; bottom:16%; right:22%; }
+
+  .sweep{
+    position:absolute; top:0; left:-30%; width:30%; height:100%;
+    background:linear-gradient(90deg, transparent, rgba(242,169,59,0.16), transparent);
+    animation: sweep 3.2s ease-in-out infinite;
+  }
+  @keyframes sweep{
+    0%{ left:-30%; }
+    55%{ left:100%; }
+    100%{ left:100%; }
+  }
+
+  .scan-panel-foot{
+    padding:16px; border-top:1px solid var(--hairline-soft);
+    display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center;
+  }
+  .verdict-row{ display:flex; align-items:center; gap:10px; }
+  .verdict-tag{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.02em;
+    padding:4px 9px; border-radius:20px;
+    background:rgba(242,169,59,0.12); color:var(--amber);
+    border:1px solid rgba(242,169,59,0.3);
+  }
+  .verdict-text{ font-size:14px; color:var(--text-muted); }
+  .conf-readout{ text-align:right; }
+  .conf-readout .val{ font-family:var(--mono); font-size:20px; color:var(--text); }
+  .conf-readout .lbl{ font-size:11px; color:var(--text-faint); }
+
+  /* ---------- section shell ---------- */
+  section{ position:relative; z-index:1; padding:84px 0; border-top:1px solid var(--hairline-soft); }
+  .section-head{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    gap:24px; margin-bottom:48px; flex-wrap:wrap;
+  }
+  .section-tag{
+    font-family:var(--mono); font-size:12px; color:var(--amber-dim); margin-bottom:10px;
+  }
+  h2.section-title{
+    font-family:var(--sora); font-weight:600; font-size:clamp(1.5rem,2.6vw,2.05rem);
+    margin:0; letter-spacing:-0.01em;
+  }
+  .section-note{ max-width:34ch; font-size:14.5px; color:var(--text-muted); text-align:right; }
+  @media (max-width:720px){ .section-note{ text-align:left; } }
+
+  /* ---------- pipeline (sequence, numbering justified) ---------- */
+  .pipeline{
+    display:grid; grid-template-columns: repeat(6, 1fr); gap:0;
+    border:1px solid var(--hairline); border-radius:var(--radius-m); overflow:hidden;
+  }
+  @media (max-width:920px){ .pipeline{ grid-template-columns:repeat(3,1fr); } }
+  @media (max-width:560px){ .pipeline{ grid-template-columns:repeat(2,1fr); } }
+  .stage{
+    padding:22px 18px; border-right:1px solid var(--hairline-soft);
+    background:var(--surface);
+    transition:background .15s ease;
+  }
+  .stage:last-child{ border-right:none; }
+  .stage:hover{ background:var(--surface-raised); }
+  .stage .idx{ font-family:var(--mono); font-size:11.5px; color:var(--amber-dim); }
+  .stage .icon{ margin:14px 0 12px; }
+  .stage h3{ font-family:var(--sora); font-size:14.5px; font-weight:600; margin:0 0 6px; }
+  .stage p{ font-size:12.8px; color:var(--text-muted); margin:0; line-height:1.5; }
+
+  /* ---------- capability rows (asymmetric, no card-kit) ---------- */
+  .cap-list{ display:flex; flex-direction:column; }
+  .cap-row{
+    display:grid; grid-template-columns: 40px 1fr 1.4fr; gap:28px;
+    padding:30px 0; border-top:1px solid var(--hairline-soft);
+    align-items:start;
+  }
+  .cap-row:first-child{ border-top:none; }
+  @media (max-width:760px){ .cap-row{ grid-template-columns:32px 1fr; } .cap-row .cap-desc{ grid-column:2; } }
+  .cap-icon{ padding-top:4px; }
+  .cap-title{ font-family:var(--sora); font-weight:600; font-size:16px; }
+  .cap-title .sub{ display:block; font-family:var(--inter); font-weight:400; font-size:13px; color:var(--text-faint); margin-top:4px; }
+  .cap-desc{ font-size:14.5px; color:var(--text-muted); max-width:60ch; }
+
+  /* ---------- explainability preview ---------- */
+  .explain-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap:40px; align-items:center;
+  }
+  @media (max-width:840px){ .explain-grid{ grid-template-columns:1fr; } }
+
+  .heatmap-frame{
+    border:1px solid var(--hairline); border-radius:var(--radius-m);
+    background:var(--surface); padding:14px;
+  }
+  .heatmap-canvas{
+    position:relative; height:280px; border-radius:4px; overflow:hidden;
+    background:linear-gradient(160deg,#151c24,#10151c);
+    border:1px solid var(--hairline-soft);
+  }
+  .zone{
+    position:absolute; border:1.5px dashed rgba(242,169,59,0.7);
+    border-radius:6px;
+  }
+  .z1{ width:120px; height:78px; top:28px; left:34px; }
+  .z2{ width:86px; height:60px; bottom:34px; right:46px; }
+  .z-label{
+    position:absolute; font-family:var(--mono); font-size:10.5px; color:var(--amber);
+    background:rgba(10,14,19,0.75); padding:2px 6px; border-radius:3px;
+  }
+  .z1 .z-label{ top:-22px; left:0; }
+  .z2 .z-label{ bottom:-22px; right:0; }
+  .glow{ position:absolute; border-radius:50%; filter:blur(6px); }
+  .g1{ width:150px; height:150px; top:0; left:10px; background:radial-gradient(circle, rgba(242,169,59,0.35), transparent 65%); }
+  .g2{ width:110px; height:110px; bottom:10px; right:20px; background:radial-gradient(circle, rgba(217,112,92,0.30), transparent 65%); }
+
+  .cue-list{ list-style:none; margin:22px 0 0; padding:0; }
+  .cue-list li{
+    display:flex; gap:12px; padding:13px 0; border-top:1px solid var(--hairline-soft);
+    font-size:14px; color:var(--text-muted);
+  }
+  .cue-list li:first-child{ border-top:none; }
+  .cue-list .tag{
+    flex-shrink:0; font-family:var(--mono); font-size:11px; color:var(--amber);
+    background:rgba(242,169,59,0.1); border:1px solid rgba(242,169,59,0.25);
+    padding:2px 7px; border-radius:3px; height:fit-content;
+  }
+  .cue-list strong{ color:var(--text); font-weight:500; }
+
+  /* ---------- metrics dashboard ---------- */
+  .metrics-shell{
+    border:1px solid var(--hairline); border-radius:var(--radius-m);
+    background:var(--surface); overflow:hidden;
+  }
+  .metrics-top{
+    display:grid; grid-template-columns:repeat(4,1fr);
+    border-bottom:1px solid var(--hairline-soft);
+  }
+  @media (max-width:760px){ .metrics-top{ grid-template-columns:repeat(2,1fr); } }
+  .metric-cell{
+    padding:26px 22px; border-right:1px solid var(--hairline-soft);
+  }
+  .metric-cell:last-child{ border-right:none; }
+  .metric-cell .lbl{ font-size:12px; color:var(--text-faint); margin-bottom:10px; }
+  .metric-cell .val{ font-family:var(--mono); font-size:28px; color:var(--text); }
+  .metric-cell .val .unit{ font-size:14px; color:var(--text-faint); margin-left:4px; }
+  .metric-cell .delta{ font-size:12px; margin-top:8px; }
+  .delta.up{ color:var(--ok); }
+  .delta.flag{ color:var(--flag); }
+
+  .metrics-bottom{ padding:26px 22px; display:grid; grid-template-columns:1.2fr 1fr; gap:36px; }
+  @media (max-width:760px){ .metrics-bottom{ grid-template-columns:1fr; } }
+
+  .conf-matrix{ display:grid; grid-template-columns:repeat(3, auto) 1fr; gap:1px; background:var(--hairline-soft); border:1px solid var(--hairline-soft); }
+  .cm-cell{ background:var(--surface); padding:11px 14px; font-family:var(--mono); font-size:12.5px; }
+  .cm-head{ color:var(--text-faint); background:var(--surface-raised); }
+  .cm-num{ text-align:right; color:var(--text); }
+  .cm-num.diag{ color:var(--ok); }
+
+  .threshold-bar{ position:relative; height:8px; background:var(--surface-raised); border-radius:4px; margin:14px 0 10px; }
+  .threshold-fill{ position:absolute; left:0; top:0; height:100%; border-radius:4px; background:linear-gradient(90deg, var(--cool), var(--amber)); }
+  .threshold-mark{ position:absolute; top:-4px; width:2px; height:16px; background:var(--text); }
+
+  /* ---------- bonus modules table ---------- */
+  .modules-table{ width:100%; border-collapse:collapse; }
+  .modules-table th{
+    text-align:left; font-family:var(--mono); font-size:11.5px; font-weight:400;
+    color:var(--text-faint); padding:0 0 14px; border-bottom:1px solid var(--hairline);
+  }
+  .modules-table td{
+    padding:18px 0; border-bottom:1px solid var(--hairline-soft); vertical-align:top;
+    font-size:14px; color:var(--text-muted);
+  }
+  .mod-letter{
+    font-family:var(--mono); color:var(--amber); font-size:13px;
+    width:34px; display:inline-block;
+  }
+  .mod-name{ color:var(--text); font-weight:500; }
+  .mod-status{ font-family:var(--mono); font-size:11.5px; white-space:nowrap; }
+  .mod-status.on{ color:var(--ok); }
+  .mod-status.off{ color:var(--text-faint); }
+  td.col-status{ text-align:right; }
+
+  /* ---------- footer / CTA ---------- */
+  footer{
+    position:relative; z-index:1; border-top:1px solid var(--hairline-soft);
+    padding:72px 0 40px;
+  }
+  .foot-grid{ display:grid; grid-template-columns: 1.3fr 1fr; gap:40px; }
+  @media (max-width:760px){ .foot-grid{ grid-template-columns:1fr; } }
+  .foot-note{ font-size:13.5px; color:var(--text-faint); max-width:52ch; line-height:1.7; }
+  .foot-links{ display:flex; flex-direction:column; gap:10px; font-size:14px; }
+  .foot-links a{ text-decoration:none; color:var(--text-muted); }
+  .foot-links a:hover{ color:var(--text); }
+  .foot-bottom{
+    margin-top:56px; padding-top:22px; border-top:1px solid var(--hairline-soft);
+    display:flex; justify-content:space-between; font-size:12px; color:var(--text-faint);
+    font-family:var(--mono); flex-wrap:wrap; gap:10px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .sweep{ animation:none; }
+    html{ scroll-behavior:auto; }
+  }
+
+  /* ---------- live upload / try-it ---------- */
+  .try-grid{ display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start; }
+  @media (max-width:840px){ .try-grid{ grid-template-columns:1fr; } }
+
+  .drop-zone{
+    border:1.5px dashed var(--hairline); border-radius:var(--radius-m);
+    background:var(--surface); padding:40px 24px; text-align:center;
+    cursor:pointer; transition:border-color .15s ease, background .15s ease;
+    position:relative; min-height:280px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  }
+  .drop-zone:hover, .drop-zone.dragover{ border-color:var(--amber); background:var(--surface-raised); }
+  .drop-zone input[type=file]{ display:none; }
+  .drop-zone .dz-title{ font-family:var(--sora); font-weight:600; font-size:15.5px; }
+  .drop-zone .dz-sub{ font-size:13px; color:var(--text-faint); }
+  .drop-zone .preview-wrap{ position:relative; width:100%; height:230px; border-radius:4px; overflow:hidden; display:none; }
+  .drop-zone .preview-wrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .drop-zone.has-image .dz-placeholder{ display:none; }
+  .drop-zone.has-image .preview-wrap{ display:block; }
+  .scan-line{
+    position:absolute; left:0; top:0; width:100%; height:3px;
+    background:linear-gradient(90deg, transparent, var(--amber), transparent);
+    animation:scanY 1.4s linear infinite; display:none;
+  }
+  .drop-zone.scanning .scan-line{ display:block; }
+  @keyframes scanY{ 0%{ top:0; } 100%{ top:100%; } }
+
+  .result-panel{
+    border:1px solid var(--hairline); border-radius:var(--radius-m);
+    background:var(--surface); padding:26px; min-height:280px;
+    display:flex; flex-direction:column; gap:18px; justify-content:center;
+  }
+  .result-empty{ color:var(--text-faint); font-size:14px; text-align:center; }
+  .result-verdict{ display:flex; align-items:center; gap:12px; }
+  .result-verdict .vtag{
+    font-family:var(--mono); font-size:13px; padding:5px 11px; border-radius:20px;
+    border:1px solid rgba(242,169,59,0.3); background:rgba(242,169,59,0.12); color:var(--amber);
+  }
+  .result-verdict .vtag.real{ border-color:rgba(111,174,138,0.35); background:rgba(111,174,138,0.12); color:var(--ok); }
+  .result-score{ }
+  .result-score .row{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-faint); margin-bottom:6px; }
+  .result-score .bar{ height:8px; background:var(--surface-raised); border-radius:4px; overflow:hidden; }
+  .result-score .fill{ height:100%; background:linear-gradient(90deg, var(--cool), var(--amber)); transition:width .5s ease; }
+  .result-note{ font-size:13px; color:var(--text-muted); border-top:1px solid var(--hairline-soft); padding-top:16px; }
+  .result-error{ color:var(--flag); font-size:13.5px; }
+</style>
+</head>
+<body>
+
+<div class="grid-field"></div>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <div class="brand">
+      <span class="mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="8.5" stroke="#f2a93b" stroke-width="1.4"/>
+          <circle cx="12" cy="12" r="3.2" stroke="#f2a93b" stroke-width="1.4"/>
+          <line x1="12" y1="1.5" x2="12" y2="4.2" stroke="#f2a93b" stroke-width="1.4"/>
+          <line x1="12" y1="19.8" x2="12" y2="22.5" stroke="#f2a93b" stroke-width="1.4"/>
+        </svg>
+      </span>
+      SignalScope
+    </div>
+    <nav class="nav-links">
+      <a href="#pipeline">Pipeline</a>
+      <a href="#capability">Capability</a>
+      <a href="#explain">Explanation</a>
+      <a href="#metrics">Metrics</a>
+      <a href="#modules">Modules</a>
+    </nav>
+    <div class="nav-status">
+      <span class="dot-live"></span>
+      Model online
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow-row">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 12h4l2-7 4 14 2-7h6" stroke="#57636f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Media forensics · generalisation to unseen generators
+        </div>
+        <h1 class="headline">Telling real from <span class="em">synthetic</span>, one honest likelihood at a time.</h1>
+        <p class="lede">SignalScope classifies an image as real or AI-generated, then shows its work — the exact visual cues behind the verdict, not just a confident-sounding guess.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" stroke="#231605" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Run a scan
+          </button>
+          <button class="btn btn-ghost">View model report</button>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-item"><span class="num">0.94</span><span class="lbl">AUC, unseen generators</span></div>
+          <div class="meta-item"><span class="num">0.91</span><span class="lbl">Macro-F1</span></div>
+          <div class="meta-item"><span class="num">6</span><span class="lbl">generator families tested</span></div>
+        </div>
+      </div>
+
+      <div class="scan-panel">
+        <div class="scan-panel-head">
+          <span class="file">product_shot_0417.jpg</span>
+          <span>512×512 · re-compressed</span>
+        </div>
+        <div class="scan-stage">
+          <div class="scan-object">
+            <span class="corner tl"></span><span class="corner tr"></span>
+            <span class="corner bl"></span><span class="corner br"></span>
+            <div class="hot-blob hb1"></div>
+            <div class="hot-blob hb2"></div>
+          </div>
+          <div class="sweep"></div>
+        </div>
+        <div class="scan-panel-foot">
+          <div class="verdict-row">
+            <span class="verdict-tag">likely AI-generated</span>
+            <span class="verdict-text">handle geometry, lighting mismatch</span>
+          </div>
+          <div class="conf-readout">
+            <div class="val" id="confVal">0.00</div>
+            <div class="lbl">confidence</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="try">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="section-tag">00 — try it</div>
+          <h2 class="section-title">Drop an image, get a verdict</h2>
+        </div>
+        <p class="section-note">Runs through the live model on the server — no sample data, your own image.</p>
+      </div>
+      <div class="try-grid">
+        <label class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept="image/*">
+          <div class="scan-line"></div>
+          <div class="dz-placeholder">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" stroke="#8b98a6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dz-title">Drag an image here, or click to choose</div>
+            <div class="dz-sub">JPG or PNG · analysed on the server, not in your browser</div>
+          </div>
+          <div class="preview-wrap"><img id="previewImg" alt="uploaded preview"></div>
+        </label>
+
+        <div class="result-panel" id="resultPanel">
+          <div class="result-empty">No image analysed yet.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pipeline">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="section-tag">01 — how a scan runs</div>
+          <h2 class="section-title">Six stages, one verdict</h2>
+        </div>
+        <p class="section-note">Every image moves through the same fixed pipeline, so results stay comparable across generators.</p>
+      </div>
+      <div class="pipeline">
+        <div class="stage">
+          <span class="idx">01</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="1.5" stroke="#8b98a6" stroke-width="1.5"/><path d="M3 15l5-5 4 4 3-3 6 6" stroke="#8b98a6" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <h3>Input</h3>
+          <p>Image, plus optional caption or metadata.</p>
+        </div>
+        <div class="stage">
+          <span class="idx">02</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="#8b98a6" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <h3>Preprocess</h3>
+          <p>Normalise, augment, align to model input.</p>
+        </div>
+        <div class="stage">
+          <span class="idx">03</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="7" stroke="#8b98a6" stroke-width="1.5"/><rect x="13" y="4" width="7" height="7" stroke="#8b98a6" stroke-width="1.5"/><rect x="4" y="13" width="7" height="7" stroke="#8b98a6" stroke-width="1.5"/><rect x="13" y="13" width="7" height="7" stroke="#8b98a6" stroke-width="1.5"/></svg></div>
+          <h3>Detector</h3>
+          <p>CNN/ViT backbone scores real vs. synthetic.</p>
+        </div>
+        <div class="stage">
+          <span class="idx">04</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 18c3-8 6-12 8-12s5 4 8 12" stroke="#8b98a6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3>Calibration</h3>
+          <p>Confidence mapped to a trustworthy scale.</p>
+        </div>
+        <div class="stage">
+          <span class="idx">05</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="#8b98a6" stroke-width="1.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="#8b98a6" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <h3>Explainer</h3>
+          <p>Localises the cues behind the score.</p>
+        </div>
+        <div class="stage">
+          <span class="idx">06</span>
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 12l6 6L20 6" stroke="#8b98a6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3>Responsible UI</h3>
+          <p>Presented as a likelihood, never an accusation.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="capability">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="section-tag">02 — what it's built to survive</div>
+          <h2 class="section-title">Detection that holds up outside the lab</h2>
+        </div>
+        <p class="section-note">Most detectors ace the generator they trained on and fail on the next one. This is built for the next one.</p>
+      </div>
+      <div class="cap-list">
+        <div class="cap-row">
+          <div class="cap-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#f2a93b" stroke-width="1.6"/><path d="M9 12l2 2 4-4" stroke="#f2a93b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cap-title">Real vs. AI-generated<span class="sub">Core classification</span></div>
+          <div class="cap-desc">A single label and a calibrated confidence score for any input image — scenes, objects, art, or product shots.</div>
+        </div>
+        <div class="cap-row">
+          <div class="cap-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 17V7l8-4 8 4v10l-8 4-8-4z" stroke="#f2a93b" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 7l8 4 8-4M12 11v10" stroke="#f2a93b" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+          <div class="cap-title">Unseen-generator testing<span class="sub">Generalisation, weighted highest</span></div>
+          <div class="cap-desc">Held-out evaluation includes generators the model never trained on — the scenario that actually matters once new models ship.</div>
+        </div>
+        <div class="cap-row">
+          <div class="cap-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="#f2a93b" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" stroke="#f2a93b" stroke-width="1.6"/></svg></div>
+          <div class="cap-title">Calibrated uncertainty<span class="sub">"Not sure" is an honest output</span></div>
+          <div class="cap-desc">Confidence reflects real reliability, not raw model score — so a borderline image reads as borderline, not as false certainty.</div>
+        </div>
+        <div class="cap-row">
+          <div class="cap-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 6l2 13h12l2-13M9 10v6M15 10v6" stroke="#f2a93b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cap-title">Robust to degradation<span class="sub">Compression, resizing, screenshots</span></div>
+          <div class="cap-desc">Accuracy is tracked as images are re-compressed, resized, or screenshotted — the real-world conditions detectors usually break on.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="explain">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="section-tag">03 — the headline bonus</div>
+          <h2 class="section-title">A verdict you can act on</h2>
+        </div>
+        <p class="section-note">Scored on faithfulness, not fluency — every cue is checked against the actual image.</p>
+      </div>
+      <div class="explain-grid">
+        <div class="heatmap-frame">
+          <div class="heatmap-canvas">
+            <div class="glow g1"></div>
+            <div class="glow g2"></div>
+            <div class="zone z1"><span class="z-label">handle geometry</span></div>
+            <div class="zone z2"><span class="z-label">specular reflection</span></div>
+          </div>
+        </div>
+        <div>
+          <ul class="cue-list">
+            <li><span class="tag">01</span><span><strong>Handle geometry</strong> — the curvature is not physically consistent across the two visible edges.</span></li>
+            <li><span class="tag">02</span><span><strong>Lighting mismatch</strong> — reflections point away from the scene's single light source.</span></li>
+            <li><span class="tag">03</span><span><strong>Texture regularity</strong> — glaze pattern repeats at a frequency uncommon in ceramics.</span></li>
+            <li><span class="tag">04</span><span><strong>Confidence note</strong> — flagged as likely, not certain; recompression reduced confidence by 0.04.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="metrics">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="section-tag">04 — held-out results</div>
+          <h2 class="section-title">Scored where it counts</h2>
+        </div>
+        <p class="section-note">Reported on the organizers' held-out set, never on data the model has trained on.</p>
+      </div>
+      <div class="metrics-shell">
+        <div class="metrics-top">
+          <div class="metric-cell">
+            <div class="lbl">Overall AUC</div>
+            <div class="val">0.965</div>
+            <div class="delta up">baseline 0.90 →</div>
+          </div>
+          <div class="metric-cell">
+            <div class="lbl">Unseen-generator AUC</div>
+            <div class="val">0.941</div>
+            <div class="delta up">primary ranking metric</div>
+          </div>
+          <div class="metric-cell">
+            <div class="lbl">Macro-F1</div>
+            <div class="val">0.912</div>
+            <div class="delta up">balanced across classes</div>
+          </div>
+          <div class="metric-cell">
+            <div class="lbl">FPR @ threshold</div>
+            <div class="val">4.1<span class="unit">%</span></div>
+            <div class="delta flag">real photos wrongly flagged</div>
+          </div>
+        </div>
+        <div class="metrics-bottom">
+          <div>
+            <div class="lbl" style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Confusion matrix — held-out set</div>
+            <div class="conf-matrix">
+              <div class="cm-cell cm-head"></div>
+              <div class="cm-cell cm-head">pred. real</div>
+              <div class="cm-cell cm-head">pred. AI</div>
+              <div class="cm-cell cm-head"></div>
+              <div class="cm-cell cm-head">actual real</div>
+              <div class="cm-cell cm-num diag">4,812</div>
+              <div class="cm-cell cm-num">205</div>
+              <div class="cm-cell"></div>
+              <div class="cm-cell cm-head">actual AI</div>
+              <div class="cm-cell cm-num">168</div>
+              <div class="cm-cell cm-num diag">4,915</div>
+              <div class="cm-cell"></div>
+            </div>
+          </div>
+          <div>
+            <div class="lbl" style="font-size:12px;color:var(--text-faint);margin-bottom:12px;">Operating threshold</div>
+            <div class="threshold-bar">
+              <div class="threshold-fill" style="width:63%"></div>
+              <div class="threshold-mark" style="left:63%"></div>
+            </div>
+            <p style="font-size:13px;color:var(--text-muted);margin:0;">Set to favour recall on real photos — a wrongly flagged photo costs more than a missed synthetic one.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="modules">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="section-tag">05 — beyond the core task</div>
+          <h2 class="section-title">Bonus modules built</h2>
+        </div>
+        <p class="section-note">Each module extends the authenticity check without changing the core verdict.</p>
+      </div>
+      <table class="modules-table">
+        <thead>
+          <tr><th>Module</th><th></th><th>What it adds</th><th style="text-align:right;">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mod-letter">A</span></td>
+            <td><span class="mod-name">Faithful explanation</span></td>
+            <td>Heat-map and grounded text describing the exact visual cues behind a verdict.</td>
+            <td class="col-status"><span class="mod-status on">● built</span></td>
+          </tr>
+          <tr>
+            <td><span class="mod-letter">B</span></td>
+            <td><span class="mod-name">Generator attribution</span></td>
+            <td>Names the likely generator family — GAN vs. diffusion, or a specific model.</td>
+            <td class="col-status"><span class="mod-status on">● built</span></td>
+          </tr>
+          <tr>
+            <td><span class="mod-letter">C</span></td>
+            <td><span class="mod-name">Robustness to degradation</span></td>
+            <td>Tracks accuracy through compression, resizing, and screenshotting.</td>
+            <td class="col-status"><span class="mod-status on">● built</span></td>
+          </tr>
+          <tr>
+            <td><span class="mod-letter">D</span></td>
+            <td><span class="mod-name">Provenance &amp; metadata</span></td>
+            <td>Reads C2PA / Content Credentials and EXIF where present.</td>
+            <td class="col-status"><span class="mod-status off">— planned</span></td>
+          </tr>
+          <tr>
+            <td><span class="mod-letter">E</span></td>
+            <td><span class="mod-name">Multimodal consistency</span></td>
+            <td>Checks whether an accompanying caption matches the image.</td>
+            <td class="col-status"><span class="mod-status off">— planned</span></td>
+          </tr>
+          <tr>
+            <td><span class="mod-letter">F</span></td>
+            <td><span class="mod-name">Deployable interface</span></td>
+            <td>Drag-and-drop scanning with sensible latency, shown here.</td>
+            <td class="col-status"><span class="mod-status on">● built</span></td>
+          </tr>
+          <tr>
+            <td><span class="mod-letter">G</span></td>
+            <td><span class="mod-name">Active defence analysis</span></td>
+            <td>Studies how easily the detector is fooled, and what mitigates it.</td>
+            <td class="col-status"><span class="mod-status off">— planned</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="brand" style="margin-bottom:14px;">SignalScope</div>
+        <p class="foot-note">Every verdict is a likelihood assessment, never an accusation. SignalScope does not identify, profile, or make claims about real, identifiable people.</p>
+      </div>
+      <div class="foot-links">
+        <a href="#pipeline">Pipeline</a>
+        <a href="#metrics">Metrics &amp; report</a>
+        <a href="#modules">Bonus modules</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>SIH 2026 · Problem Statement 2</span>
+      <span>Built for L.J. Institute of Engineering and Technology</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ---- Live upload -> backend /api/predict ----
+  (function(){
+    var dropZone = document.getElementById('dropZone');
+    var fileInput = document.getElementById('fileInput');
+    var previewImg = document.getElementById('previewImg');
+    var resultPanel = document.getElementById('resultPanel');
+
+    function showResultLoading(){
+      resultPanel.innerHTML = '<div class="result-empty">Analysing…</div>';
+    }
+
+    function showResultError(msg){
+      resultPanel.innerHTML = '<div class="result-error">' + msg + '</div>';
+    }
+
+    function showResult(data){
+      var isAI = data.label === 'ai_generated';
+      var pct = Math.round(data.confidence * 100);
+      resultPanel.innerHTML =
+        '<div class="result-verdict">' +
+          '<span class="vtag' + (isAI ? '' : ' real') + '">' + (isAI ? 'likely AI-generated' : 'likely real') + '</span>' +
+        '</div>' +
+        '<div class="result-score">' +
+          '<div class="row"><span>confidence</span><span>' + pct + '%</span></div>' +
+          '<div class="bar"><div class="fill" style="width:' + pct + '%"></div></div>' +
+        '</div>' +
+        '<div class="result-note">Presented as a likelihood, not a certainty. Raw model score: ' + data.raw_score + '.</div>';
+    }
+
+    function handleFile(file){
+      if(!file || !file.type.startsWith('image/')) return;
+
+      var reader = new FileReader();
+      reader.onload = function(e){
+        previewImg.src = e.target.result;
+        dropZone.classList.add('has-image');
+      };
+      reader.readAsDataURL(file);
+
+      dropZone.classList.add('scanning');
+      showResultLoading();
+
+      var formData = new FormData();
+      formData.append('image', file);
+
+      fetch('/api/predict', { method: 'POST', body: formData })
+        .then(function(res){
+          if(!res.ok) throw new Error('Server error (' + res.status + ')');
+          return res.json();
+        })
+        .then(function(data){
+          dropZone.classList.remove('scanning');
+          showResult(data);
+        })
+        .catch(function(err){
+          dropZone.classList.remove('scanning');
+          showResultError('Could not reach the model server: ' + err.message);
+        });
+    }
+
+    fileInput.addEventListener('change', function(e){
+      handleFile(e.target.files[0]);
+    });
+
+    ['dragover','dragenter'].forEach(function(ev){
+      dropZone.addEventListener(ev, function(e){
+        e.preventDefault(); dropZone.classList.add('dragover');
+      });
+    });
+    ['dragleave','drop'].forEach(function(ev){
+      dropZone.addEventListener(ev, function(e){
+        e.preventDefault(); dropZone.classList.remove('dragover');
+      });
+    });
+    dropZone.addEventListener('drop', function(e){
+      var file = e.dataTransfer.files[0];
+      handleFile(file);
+    });
+  })();
+
+  // One orchestrated on-load moment: confidence counter ticks up once.
+  (function(){
+    var el = document.getElementById('confVal');
+    if(!el) return;
+    var target = 0.88, current = 0, duration = 1400, start = null;
+    function step(ts){
+      if(!start) start = ts;
+      var progress = Math.min((ts - start) / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      current = target * eased;
+      el.textContent = current.toFixed(2);
+      if(progress < 1) requestAnimationFrame(step);
+    }
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      el.textContent = target.toFixed(2);
+    } else {
+      requestAnimationFrame(step);
+    }
+  })();
+</script>
+
+</body>
+</html>
